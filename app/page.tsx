@@ -189,7 +189,7 @@ export default function Home() {
                                   {res.columns.map((col, i) => (
                                     <th
                                       key={i}
-                                      className="px-3 py-2 text-left font-bold bg-green-800/10 border-b border-black/5"
+                                      className="px-3 py-2 text-center font-bold bg-green-800/10 border-b border-black/5"
                                     >
                                       {col.name || `Column ${i + 1}`}
                                     </th>
@@ -212,11 +212,13 @@ export default function Home() {
                                       {row.map((val, i) => (
                                         <td
                                           key={i}
-                                          className="px-3 py-2 border-b border-black/5"
+                                          className="px-3 py-2 text-center border-b border-black/5"
                                         >
                                           {typeof val == "object"
                                             ? `(${val.x}, ${val.y})`
-                                            : val.toString()}
+                                            : typeof val == "string"
+                                              ? `'${val}'`
+                                              : val.toString()}
                                         </td>
                                       ))}
                                     </tr>
