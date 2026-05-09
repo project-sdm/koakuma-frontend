@@ -12,7 +12,9 @@ import { Metrics } from "@/components/Metrics";
 const DEFAULT_API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
-const DEFAULT_QUERY = `
+const DEFAULT_QUERY =
+  process.env.NEXT_PUBLIC_DEFAULT_QUERY ?? // why not i guess
+  `
 -- Consultas de ejemplo
 
 drop table if exists users;
@@ -31,7 +33,7 @@ select * from users where married = true;
 select * from users where location in (point(2, 1), radius 4.2);
 `.trim();
 
-export default function Home() {
+const Home = () => {
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
   const [query, setQuery] = useState(() => {
     if (typeof window === "undefined") return "";
@@ -169,4 +171,6 @@ export default function Home() {
       </div>
     </main>
   );
-}
+};
+
+export default Home;
