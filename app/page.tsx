@@ -31,6 +31,8 @@ create table users (
 select * from users where id = 'id_087';
 select * from users where married = true;
 select * from users where location in (point(2, 1), radius 4.2);
+
+show index users.location;
 `.trim();
 
 const Home = () => {

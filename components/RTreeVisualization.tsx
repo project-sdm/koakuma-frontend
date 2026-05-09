@@ -1,25 +1,46 @@
-import { Rect } from "@/lib/schemas";
-import { Coordinates, Mafs, Point, Polygon } from "mafs";
+import { Point2D, Rect } from "@/lib/schemas";
+import { Circle, Coordinates, Mafs, Point, Polygon } from "mafs";
 import "mafs/core.css";
 
 export interface Props {
   rects: [number, Rect][];
+  point: Point2D | null;
+  radius: number | null;
 }
 
-export const RTreeVisualization = ({ rects }: Props) => {
-  if (rects.length === 0) return null;
+export const RTreeVisualization = ({ rects, point, radius }: Props) => {
+  if (rects.length === 0 && !point) return null;
 
   let minX = Infinity,
     minY = Infinity,
     maxX = -Infinity,
     maxY = -Infinity;
 
+  const updateBounds = (x: number, y: number) => {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  };
+
   rects.forEach(([, rect]) => {
-    minX = Math.min(minX, rect.min[0], rect.max[0]);
-    minY = Math.min(minY, rect.min[1], rect.max[1]);
-    maxX = Math.max(maxX, rect.min[0], rect.max[0]);
-    maxY = Math.max(maxY, rect.min[1], rect.max[1]);
+    updateBounds(rect.min[0], rect.min[1]);
+    updateBounds(rect.max[0], rect.max[1]);
   });
+
+  if (point) {
+    const r = radius || 0;
+    updateBounds(point[0] - r, point[1] - r);
+    updateBounds(point[0] + r, point[1] + r);
+  }
+
+  // Fallback if still infinity
+  if (minX === Infinity) {
+    minX = -10;
+    minY = -10;
+    maxX = 10;
+    maxY = 10;
+  }
 
   const width = maxX - minX;
   const height = maxY - minY;
@@ -33,7 +54,7 @@ export const RTreeVisualization = ({ rects }: Props) => {
     { stroke: "#f43f5e", fill: "#f43f5e", label: "Nivel 4+" },
   ];
 
-  const levels = 1 + Math.max(...rects.map((r) => r[0]));
+  const levels = rects.length > 0 ? 1 + Math.max(...rects.map((r) => r[0])) : 0;
 
   return (
     <div className="border border-stone-200 rounded-sm bg-white overflow-hidden h-[500px] relative">
@@ -111,6 +132,25 @@ export const RTreeVisualization = ({ rects }: Props) => {
               />
             );
           })}
+
+        {point && (
+          <>
+            {radius && (
+              <Circle
+                center={point}
+                radius={radius}
+                color="#ef4444"
+                fillOpacity={0.05}
+              />
+            )}
+            <Point
+              x={point[0]}
+              y={point[1]}
+              color="#b91c1c"
+              svgCircleProps={{ radius: "5px" }}
+            />
+          </>
+        )}
       </Mafs>
     </div>
   );

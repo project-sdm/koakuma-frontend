@@ -29,6 +29,8 @@ export type Table = z.infer<typeof Table>;
 
 export const Plane = z.object({
   rects: z.array(z.tuple([z.int(), Rect])),
+  point: z.nullable(Point2D),
+  radius: z.nullable(z.number()),
 });
 export type Plane = z.infer<typeof Plane>;
 

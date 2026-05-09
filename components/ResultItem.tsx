@@ -33,7 +33,7 @@ export const ResultItem: React.FC<Props> = ({ result }) => {
         <p className="text-xs text-stone-400">Sin resultados.</p>
       )}
 
-      {result.plane && <RTreeVisualization rects={result.plane.rects} />}
+      {result.plane && <RTreeVisualization {...result.plane} />}
     </div>
   );
 };
