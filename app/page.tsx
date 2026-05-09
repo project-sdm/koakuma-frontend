@@ -19,6 +19,8 @@ const DEFAULT_QUERY =
 
 drop table if exists users;
 
+-- Tipos:   int, real, bool, varchar, point2d
+-- Índices: hash, btree, rtree
 create table users (
   id           varchar primary key,
   name         varchar index hash,
@@ -30,7 +32,9 @@ create table users (
 
 select * from users where id = 'id_087';
 select * from users where married = true;
-select * from users where location in (point(2, 1), radius 4.2);
+
+select * from users where location in (point(9.4, 1.6), k 10);
+select * from users where location in (point(9.4, 1.6), radius 12);
 
 show index users.location;
 `.trim();
