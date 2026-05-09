@@ -1,4 +1,4 @@
-import { Column, Row } from "@/lib/schemas";
+import { Column, Row, Value } from "@/lib/schemas";
 import React from "react";
 
 export interface Props {
@@ -7,6 +7,12 @@ export interface Props {
     rows: Row[];
   };
 }
+
+const formatValue = (val: Value) => {
+  if (Array.isArray(val)) return `(${val[0]}, ${val[1]})`;
+  if (typeof val === "string") return `'${val}'`;
+  return val.toString();
+};
 
 export const ResultTable: React.FC<Props> = ({ table }) => {
   return (
@@ -45,11 +51,7 @@ export const ResultTable: React.FC<Props> = ({ table }) => {
                     key={i}
                     className="px-4 py-2 text-center border-x border-stone-200 tabular-nums"
                   >
-                    {Array.isArray(val)
-                      ? `(${val[0]}, ${val[1]})`
-                      : typeof val === "string"
-                        ? `'${val}'`
-                        : val.toString()}
+                    {formatValue(val)}
                   </td>
                 ))}
               </tr>

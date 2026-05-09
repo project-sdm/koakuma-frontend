@@ -28,7 +28,7 @@ create table users (
   location     point2d index rtree
 ) from file 'data/sample/users.csv';
 
-select * from users where id = 'id_086';
+select * from users where id = 'id_087';
 select * from users where married = true;
 select * from users where location in (point(2, 1), radius 4.2);
 `.trim();
