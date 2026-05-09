@@ -4,6 +4,9 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { sql } from "@codemirror/lang-sql";
 import CodeMirror from "@uiw/react-codemirror";
 import { z } from "zod";
+import { Mafs, Coordinates, Polygon, Point } from "mafs";
+
+import "mafs/core.css";
 
 const Column = z.object({
   name: z.string(),
@@ -20,9 +23,27 @@ type Value = z.infer<typeof Value>;
 const Row = z.array(Value);
 type Row = z.infer<typeof Row>;
 
-const QueryResult = z.object({
+const Rect = z.object({
+  min: Point2D,
+  max: Point2D,
+});
+type Rect = z.infer<typeof Rect>;
+
+const Table = z.object({
   columns: z.array(Column),
   rows: z.array(Row),
+});
+type Table = z.infer<typeof Table>;
+
+const Plane = z.object({
+  rects: z.array(z.tuple([z.int(), Rect])),
+});
+type Plane = z.infer<typeof Plane>;
+
+const QueryResult = z.object({
+  table: z.nullable(Table),
+  plane: z.nullable(Plane),
+  warnings: z.array(z.string()),
 });
 type QueryResult = z.infer<typeof QueryResult>;
 
@@ -42,22 +63,138 @@ type ErrorResponse = z.infer<typeof ErrorResponse>;
 const DEFAULT_API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
+const RTreeVisualization = ({
+  rects,
+}: {
+  rects: [number, { min: [number, number]; max: [number, number] }][];
+}) => {
+  if (rects.length === 0) return null;
+
+  // Find bounding box for initial view
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+
+  rects.forEach(([, rect]) => {
+    minX = Math.min(minX, rect.min[0], rect.max[0]);
+    minY = Math.min(minY, rect.min[1], rect.max[1]);
+    maxX = Math.max(maxX, rect.min[0], rect.max[0]);
+    maxY = Math.max(maxY, rect.min[1], rect.max[1]);
+  });
+
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const padding = Math.max(width, height, 20) * 0.1;
+
+  const colorConfig = [
+    { stroke: "#78716c", fill: "#78716c", label: "Hoja" },
+    { stroke: "#3b82f6", fill: "#3b82f6", label: "Nivel 1" },
+    { stroke: "#10b981", fill: "#10b981", label: "Nivel 2" },
+    { stroke: "#f59e0b", fill: "#f59e0b", label: "Nivel 3" },
+    { stroke: "#f43f5e", fill: "#f43f5e", label: "Nivel 4+" },
+  ];
+
+  const levels = 1 + Math.max(...rects.map((r) => r[0]));
+
+  return (
+    <div className="border border-stone-200 rounded-sm bg-white overflow-hidden h-[500px] relative">
+      <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 pointer-events-none">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-stone-600 bg-white/80 px-2 py-1 rounded-sm border border-stone-100">
+          Vista de R-Tree
+        </div>
+        {[...Array(levels)].map((_, level) => {
+          const config =
+            colorConfig[level] || colorConfig[colorConfig.length - 1];
+
+          return (
+            <div
+              key={level}
+              className="flex items-center gap-2 px-2 py-0.5 bg-white/80 rounded-sm border border-stone-100"
+            >
+              <div
+                className="w-2 h-2 border"
+                style={{
+                  borderColor: config.stroke,
+                  backgroundColor: `${config.fill}20`,
+                }}
+              />
+              <span className="text-[9px] font-bold text-stone-500">
+                {config.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      <Mafs
+        height={500}
+        viewBox={{
+          x: [minX - padding, maxX + padding],
+          y: [minY - padding, maxY + padding],
+        }}
+        pan
+        zoom
+      >
+        <Coordinates.Cartesian />
+
+        {rects
+          .sort((a, b) => b[0] - a[0])
+          .map(([level, rect], i) => {
+            const config =
+              colorConfig[level] || colorConfig[colorConfig.length - 1];
+
+            if (level === 0) {
+              return (
+                <Point
+                  key={i}
+                  x={rect.min[0]}
+                  y={rect.min[1]}
+                  color={config.stroke}
+                  svgCircleProps={{ radius: "2px" }}
+                />
+              );
+            }
+
+            const points: [number, number][] = [
+              [rect.min[0], rect.min[1]],
+              [rect.max[0], rect.min[1]],
+              [rect.max[0], rect.max[1]],
+              [rect.min[0], rect.max[1]],
+            ];
+
+            return (
+              <Polygon
+                key={i}
+                points={points}
+                color={config.stroke}
+                fillOpacity={0.1}
+                weight={2}
+              />
+            );
+          })}
+      </Mafs>
+    </div>
+  );
+};
+
 export default function Home() {
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("query") ?? "";
+    }
+    return "";
+  });
   const [result, setResult] = useState<QueryResponse | null>(null);
   const [error, setError] = useState<ErrorResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const initialized = useRef(false);
 
-  // Restore query from localStorage on mount
   useEffect(() => {
-    const saved = localStorage.getItem("query");
-    if (saved) setQuery(saved);
     initialized.current = true;
   }, []);
 
-  // Save query to localStorage on change
   useEffect(() => {
     if (initialized.current) {
       localStorage.setItem("query", query);
@@ -136,7 +273,7 @@ export default function Home() {
                 value={query}
                 extensions={[sql()]}
                 onChange={setQuery}
-                height="500px"
+                height="300px"
                 className="text-sm"
                 theme="light"
                 basicSetup={{ lineNumbers: true }}
@@ -183,67 +320,92 @@ export default function Home() {
                   </div>
 
                   <div className="space-y-8">
-                    {result.results.length === 0 ||
-                    result.results.every((r) => r.rows.length === 0) ? (
+                    {result.results.length === 0 ? (
                       <p className="text-xs text-stone-400">
                         No se retornaron resultados.
                       </p>
                     ) : (
                       result.results.map((res, resIdx) => (
                         <div key={resIdx} className="space-y-3">
-                          {result.results.length > 1 && (
-                            <div className="text-sm font-bold text-stone-400 uppercase tracking-widest">
-                              Resultado {resIdx + 1}
+                          <hr className="border-stone-200" />
+                          {res.warnings && res.warnings.length > 0 && (
+                            <div className="space-y-2">
+                              {res.warnings.map((warning, i) => (
+                                <div
+                                  key={i}
+                                  className="border border-amber-200 bg-amber-50/50 p-3 text-amber-900 text-xs leading-relaxed"
+                                >
+                                  <span className="font-bold mr-2">
+                                    [WARNING]
+                                  </span>
+                                  {warning}
+                                </div>
+                              ))}
                             </div>
                           )}
-                          <div className="overflow-x-auto max-h-[400px] overflow-y-auto border border-stone-200 rounded-sm">
-                            <table className="w-full text-xs border-collapse">
-                              <thead className="sticky top-0 z-10 bg-stone-50 shadow-[0_1px_0_0_rgba(231,229,228,1)]">
-                                <tr>
-                                  {res.columns.map((col, i) => (
-                                    <th
-                                      key={i}
-                                      className="px-4 py-3 text-center font-bold border-x border-stone-200 text-stone-500 uppercase tracking-tighter"
-                                    >
-                                      {col.name || `col_${i + 1}`}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody className="bg-white">
-                                {res.rows.length === 0 ? (
+
+                          {res.table && (
+                            <div className="overflow-x-auto max-h-[400px] overflow-y-auto border border-stone-200 rounded-sm">
+                              <table className="w-full text-xs border-collapse">
+                                <thead className="sticky top-0 z-10 bg-stone-50 shadow-[0_1px_0_0_rgba(231,229,228,1)]">
                                   <tr>
-                                    <td
-                                      colSpan={res.columns.length}
-                                      className="px-4 py-8 text-center text-stone-400"
-                                    >
-                                      Tabla vacía.
-                                    </td>
+                                    {res.table.columns.map((col, i) => (
+                                      <th
+                                        key={i}
+                                        className="px-4 py-3 text-center font-bold border-x border-stone-200 text-stone-500 uppercase tracking-tighter"
+                                      >
+                                        {col.name || `col_${i + 1}`}
+                                      </th>
+                                    ))}
                                   </tr>
-                                ) : (
-                                  res.rows.map((row, ri) => (
-                                    <tr
-                                      key={ri}
-                                      className="border-b border-stone-100 last:border-b-0"
-                                    >
-                                      {row.map((val, i) => (
-                                        <td
-                                          key={i}
-                                          className="px-4 py-2 text-center border-x border-stone-200 tabular-nums"
-                                        >
-                                          {Array.isArray(val)
-                                            ? `(${val[0]}, ${val[1]})`
-                                            : typeof val == "string"
-                                              ? `'${val}'`
-                                              : val.toString()}
-                                        </td>
-                                      ))}
+                                </thead>
+                                <tbody className="bg-white">
+                                  {res.table.rows.length === 0 ? (
+                                    <tr>
+                                      <td
+                                        colSpan={res.table.columns.length}
+                                        className="px-4 py-8 text-center text-stone-400"
+                                      >
+                                        Tabla vacía.
+                                      </td>
                                     </tr>
-                                  ))
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
+                                  ) : (
+                                    res.table.rows.map((row, ri) => (
+                                      <tr
+                                        key={ri}
+                                        className="border-b border-stone-100 last:border-b-0"
+                                      >
+                                        {row.map((val, i) => (
+                                          <td
+                                            key={i}
+                                            className="px-4 py-2 text-center border-x border-stone-200 tabular-nums"
+                                          >
+                                            {Array.isArray(val)
+                                              ? `(${val[0]}, ${val[1]})`
+                                              : typeof val == "string"
+                                                ? `'${val}'`
+                                                : val.toString()}
+                                          </td>
+                                        ))}
+                                      </tr>
+                                    ))
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+
+                          {res.plane && (
+                            <RTreeVisualization rects={res.plane.rects} />
+                          )}
+
+                          {!res.table &&
+                            !res.plane &&
+                            res.warnings.length === 0 && (
+                              <p className="text-xs text-stone-400">
+                                Sin resultados.
+                              </p>
+                            )}
                         </div>
                       ))
                     )}
