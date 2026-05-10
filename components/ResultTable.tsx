@@ -12,7 +12,7 @@ const formatValue = (val: Value) => {
 };
 
 export const ResultTable: React.FC<Props> = ({ table }) => (
-  <div className="overflow-x-auto max-h-[400px] overflow-y-auto border border-stone-200 rounded-sm">
+  <div className="overflow-x-auto max-h-[385px] overflow-y-auto border border-stone-200 rounded-sm">
     <table className="w-full text-xs border-collapse">
       <thead className="sticky top-0 z-10 bg-stone-50 shadow-[0_1px_0_0_rgba(231,229,228,1)]">
         <tr>
